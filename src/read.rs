@@ -257,6 +257,9 @@ fn make_crypto_reader<'a>(
     Ok(Ok(reader))
 }
 
+/// The size of each read by the internal decoder
+pub static mut DECODE_BUFFER_SIZE: usize = 8*1024*1024;
+
 fn make_reader(
     compression_method: CompressionMethod,
     crc32: u32,
@@ -274,7 +277,7 @@ fn make_reader(
             feature = "deflate-zlib"
         ))]
         CompressionMethod::Deflated => {
-            let deflate_reader = DeflateDecoder::new(reader);
+            let deflate_reader = unsafe{DeflateDecoder::new_with_buf(reader, vec![0; DECODE_BUFFER_SIZE])};
             ZipFileReader::Deflated(Crc32Reader::new(deflate_reader, crc32, ae2_encrypted))
         }
         #[cfg(feature = "bzip2")]
@@ -440,6 +443,12 @@ impl<R: Read + io::Seek> ZipArchive<R> {
 
         Ok(ZipArchive { reader, shared })
     }
+
+    /// The size of each read by the internal decoder
+    pub fn set_buffer_size(&self, size:usize){
+        unsafe{DECODE_BUFFER_SIZE = size;}
+    }
+
     /// Extract a Zip archive into a directory, overwriting files if they
     /// already exist. Paths are sanitized with [`ZipFile::enclosed_name`].
     ///
